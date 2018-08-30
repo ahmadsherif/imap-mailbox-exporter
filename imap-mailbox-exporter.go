@@ -68,7 +68,7 @@ func (exp *Exporter) queryImapServer() ImapState {
 	)
 
 	// Connect to the server
-	client, err = imap.Dial(exp.mailserver)
+	client, err = imap.DialTLS(exp.mailserver, nil)
 	if err != nil {
 		state.up = 0
 		return state
@@ -76,13 +76,6 @@ func (exp *Exporter) queryImapServer() ImapState {
 
 	// Remember to log out and close the connection when finished
 	defer client.Logout(30 * time.Second)
-
-	// Enable encryption, if supported by the server
-	if client.Caps["STARTTLS"] {
-		client.StartTLS(nil)
-	} else {
-		log.Fatal("IMAP server does not support encryption!")
-	}
 
 	// Authenticate
 	if client.State() != imap.Login {
