@@ -14,8 +14,9 @@ import (
 )
 
 type ImapState struct {
-	nb_messages int
-	up          int
+	nb_messages        int
+	nb_unread_messages int
+	up                 int
 }
 
 type Exporter struct {
@@ -28,8 +29,9 @@ type Exporter struct {
 	lastState        ImapState
 	mutex            sync.Mutex
 
-	up         *prometheus.Desc
-	nbMessages prometheus.Gauge
+	up               *prometheus.Desc
+	nbMessages       prometheus.Gauge
+	nbUnreadMessages prometheus.Gauge
 }
 
 func NewExporter(mailserver, username, password string, mailbox string, minQueryInterval time.Duration) *Exporter {
@@ -50,12 +52,18 @@ func NewExporter(mailserver, username, password string, mailbox string, minQuery
 			Name:      "nb_messages_in_mailbox",
 			Help:      "Current number of messages in mailbox",
 		}),
+		nbUnreadMessages: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "imap",
+			Name:      "nb_unread_messages_in_mailbox",
+			Help:      "Current number of unread messages in mailbox",
+		}),
 	}
 }
 
 func (exp *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- exp.up
 	exp.nbMessages.Describe(ch)
+	exp.nbUnreadMessages.Describe(ch)
 }
 
 func (exp *Exporter) queryImapServer() ImapState {
@@ -89,8 +97,20 @@ func (exp *Exporter) queryImapServer() ImapState {
 	// Open a mailbox read-only (synchronous command - no need for imap.Wait)
 	client.Select(exp.mailbox, true)
 
+	cmd, err := client.Search([]imap.Field{"UNSEEN"})
+	if _, err := cmd.Result(imap.OK); err != nil {
+		log.Fatal(err)
+	}
+
+	unreadCount := 0
+	for i := 0; i < len(cmd.Data); i++ {
+		// Fields looks like {"SEARCH", 0x169, 0x16a, ...}, so we drop the first item with a -1
+		unreadCount += len(cmd.Data[i].Fields) - 1
+	}
+
 	state.up = 1
 	state.nb_messages = int(client.Mailbox.Messages)
+	state.nb_unread_messages = unreadCount
 
 	return state
 }
@@ -103,7 +123,9 @@ func (exp *Exporter) collect(ch chan<- prometheus.Metric) error {
 	}
 
 	exp.nbMessages.Set(float64(state.nb_messages))
+	exp.nbUnreadMessages.Set(float64(state.nb_unread_messages))
 	exp.nbMessages.Collect(ch)
+	exp.nbUnreadMessages.Collect(ch)
 	ch <- prometheus.MustNewConstMetric(exp.up, prometheus.GaugeValue, float64(state.up))
 
 	return nil
