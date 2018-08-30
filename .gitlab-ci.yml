@@ -11,10 +11,11 @@ build:
     - cp -r /builds/ahmadsherif/imap-mailbox-exporter /go/src/github.com/ahmadsherif
     - cd /go/src/github.com/ahmadsherif/imap-mailbox-exporter
     - govendor build
-    - cp imap-mailbox-exporter /builds/ahmadsherif/imap-mailbox-exporter
+    - mkdir -p /builds/ahmadsherif/imap-mailbox-exporter/bin
+    - cp imap-mailbox-exporter /builds/ahmadsherif/imap-mailbox-exporter/bin/
   artifacts:
     paths:
-      - /builds/ahmadsherif/imap-mailbox-exporter/imap-mailbox-exporter
+      - /builds/ahmadsherif/imap-mailbox-exporter/bin/
     name: binary-go1.10
     expire_in: 2 years
 
